@@ -18,12 +18,12 @@ type ACS struct {
 }
 
 // GenerateUUID returns a UUID that can be used in the Azure request
-func (a ACS) GenerateUUID() string {
+func (a *ACS) GenerateUUID() string {
 	return uuid.NewV4().String()
 }
 
 // GetToken returns a token that can be used to authenticate to Azure resources
-func (a ACS) GetToken(namespace string, scope *url.URL) (string, error) {
+func (a *ACS) GetToken(namespace string, scope *url.URL) (string, error) {
 
 	// set up the request
 	acsURL := "https://" + namespace + "-sb.accesscontrol.windows.net/WRAPv0.9/"
@@ -53,7 +53,7 @@ func (a ACS) GetToken(namespace string, scope *url.URL) (string, error) {
 
 	// parse the token from the response body
 	tokenKeyValue := strings.Split(string(body), "&")[0]
-	if !strings.Contains(tokenKeyValue, "wrap_access_token=") {
+	if resp.StatusCode != 200 || !strings.Contains(tokenKeyValue, "wrap_access_token=") {
 		return "", fmt.Errorf("goazure: ACS Authentication Failed")
 	}
 	token := strings.Replace(tokenKeyValue, "wrap_access_token=", "", 1)
