@@ -2,7 +2,6 @@ package goazure
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,6 +22,15 @@ func (s *ServiceBusRelay) CallEndpoint(endpointPath string, soapAction string, s
 	}
 	endpointURL := "https://" + s.Namespace + ".servicebus.windows.net/" + s.Scope + endpointPath
 
+	req, err := s.buildRequest(endpointURL, soapAction, soapBody)
+	if err != nil {
+		return nil, err
+	}
+
+	return sendHTTPRequest(req)
+}
+
+func (s *ServiceBusRelay) buildRequest(endpointURL string, soapAction string, soapBody string) (*http.Request, error) {
 	envelope, err := s.buildSOAPEnvelope(soapBody)
 	if err != nil {
 		return nil, fmt.Errorf("goazure: error calling buildSOAPEnvelope: %s", err)
@@ -34,19 +42,7 @@ func (s *ServiceBusRelay) CallEndpoint(endpointPath string, soapAction string, s
 	}
 	req.Header.Add("SOAPAction", soapAction)
 	req.Header.Add("Content-Type", "text/xml; charset=utf-8")
-
-	// send the request
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("goazure: %s", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("goazure: response status code: %v", resp.StatusCode)
-	}
-	body, err := ioutil.ReadAll(resp.Body)
-	return body, err
+	return req, nil
 }
 
 func (s *ServiceBusRelay) buildSOAPEnvelope(soapBody string) (string, error) {

@@ -3,7 +3,6 @@ package goazure
 import (
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -23,9 +22,21 @@ func (a *ACS) GenerateUUID() string {
 }
 
 // GetToken returns a token that can be used to authenticate to Azure resources
-func (a *ACS) GetToken(namespace string, scope *url.URL) (string, error) {
+func (a *ACS) GetToken(namespace string, scope *url.URL) (token string, err error) {
+	req, err := a.buildRequest(namespace, scope)
+	if err != nil {
+		return "", err
+	}
 
-	// set up the request
+	body, err := sendHTTPRequest(req)
+	if err != nil {
+		return "", err
+	}
+
+	return a.processToken(body)
+}
+
+func (a *ACS) buildRequest(namespace string, scope *url.URL) (*http.Request, error) {
 	acsURL := "https://" + namespace + "-sb.accesscontrol.windows.net/WRAPv0.9/"
 
 	data := url.Values{}
@@ -35,34 +46,25 @@ func (a *ACS) GetToken(namespace string, scope *url.URL) (string, error) {
 
 	req, err := http.NewRequest("POST", acsURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		return "", fmt.Errorf("goazure: %s", err)
+		return nil, fmt.Errorf("goazure: %s", err)
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	return req, nil
+}
 
-	// send the request
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("goazure: %s", err)
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("goazure: %s", err)
-	}
-
-	// parse the token from the response body
-	tokenKeyValue := strings.Split(string(body), "&")[0]
-	if resp.StatusCode != 200 || !strings.Contains(tokenKeyValue, "wrap_access_token=") {
+func (a *ACS) processToken(body []byte) (token string, err error) {
+	responseBodyValues := strings.Split(string(body), "&")
+	tokenKeyValue := responseBodyValues[0]
+	//expirationKeyValue := responseBodyValues[1]
+	if !strings.Contains(tokenKeyValue, "wrap_access_token=") {
 		return "", fmt.Errorf("goazure: ACS Authentication Failed")
 	}
-	token := strings.Replace(tokenKeyValue, "wrap_access_token=", "", 1)
-	token, err = url.QueryUnescape(token)
+	tokenValue := strings.Replace(tokenKeyValue, "wrap_access_token=", "", 1)
+	tokenValue, err = url.QueryUnescape(tokenValue)
 	if err != nil {
 		return "", fmt.Errorf("goazure: %s", err)
 	}
 
-	b64EncodedToken := base64.StdEncoding.EncodeToString([]byte(token))
-
-	return b64EncodedToken, nil
+	token = base64.StdEncoding.EncodeToString([]byte(tokenValue))
+	return token, nil
 }

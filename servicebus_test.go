@@ -18,7 +18,7 @@ func TestCallEndpoint(t *testing.T) {
 			result, err := sbr.CallEndpoint(endpointPath, soapAction, soapBody)
 			Convey("Then a valid response is returned", func() {
 				So(err, ShouldBeNil)
-				So(string(result), ShouldNotEqual, "")
+				So(string(result), ShouldContainSubstring, "GetAccountTeamBySiteIDResponse")
 			})
 		})
 	})
